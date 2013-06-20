@@ -3,7 +3,7 @@
 #require 'yaml'
 require 'pp'
 
-Puppet::Type.newtype(:integration_test) do
+Puppet::Type.newtype(:integration) do
 	@doc = "Integration Test"
 
 	ensurable
@@ -45,15 +45,22 @@ Puppet::Type.newtype(:integration_test) do
 	#end
 
 	# Special autorequire for all objects in the catalog except for other integration tests!
+	# I have had to implement this by overiding the type autorequire method which is concered with building up
+	# predefined hashes of types to autorequire and replace with a simpler function which will try to autorequire 
+	# EVERYTHING in the catalog.. except some of the built in component types and our Integration type.
 
-	autorequire(type.to_sym) do
-		requires = []
+	def autorequire(rel_catalog = nil)
+
+		rel_catalog ||= catalog
+		raise(Puppet::DevError, "You cannot add relationships without a catalog") unless rel_catalog
+
+		# Do not autorequire these types!
+		ignore_types = [ "Puppet::Type::Stage", "Puppet::Type::Component", "Puppet::Type::Integration", "Puppet::Type::Schedule", "Puppet::Type::Filebucket" ]
+		reqs = []
 		catalog.resources.each {|d|
-			if (d.class.to_s != "Puppet::Type::Integration_test")
-				requires << d.name
-			end
+			reqs << Puppet::Relationship.new(d, self) if (!ignore_types.include?(d.class.to_s))
 		}
-		requires
+		reqs
 	end
 
 end
